@@ -1,0 +1,25 @@
+{
+  "name": "rico-hageman/go-flink-client",
+  "description": "A PHP Client for the Flink API",
+  "type": "library",
+  "homepage": "https://github.com/RicoHageman/go-flink-client-php",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Rico Hageman",
+      "email": "info@ricohageman.nl"
+    }
+  ],
+  "require": {
+    "php": ">=7.4",
+    "ext-curl": "*",
+    "ext-json": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "GoFlink\\Client\\": "src",
+      "GoFlink\\Client\\Models\\": "src/models",
+      "GoFlink\\Client\\Data\\": "src/data"
+    }
+  }
+}
