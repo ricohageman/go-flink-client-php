@@ -6,6 +6,7 @@ use GoFlink\Client\Data\Coordinate;
 use GoFlink\Client\Data\Line;
 use GoFlink\Client\Models\Cart;
 use GoFlink\Client\Models\Hub;
+use GoFlink\Client\Models\Order;
 use GoFlink\Client\Models\Product;
 
 class Client
@@ -26,6 +27,7 @@ class Client
     protected const ERROR_HUB_IS_CLOSED = "The selected hub is currently closed, please wait until the hub opens before performing hub specific actions.";
     protected const ERROR_FAILED_TO_CREATE_CART = "An error occurred during the creation of a cart: %s";
     protected const ERROR_FAILED_TO_UPDATE_CART = "An error occurred during updating the cart.: %s";
+    protected const ERROR_CART_HAS_NO_ORDER = "The provided cart has no reference to an order.";
 
     /**
      * Endpoints not requiring
@@ -34,10 +36,14 @@ class Client
         self::URL_DELIVERY_AREAS => true,
         self::URL_LOCATIONS_HUB => true,
         self::URL_HUBS => true,
+        self::URL_CART => true,
+        self::URL_ORDERS => true,
     ];
     protected const URL_DELIVERY_AREAS = 'delivery_areas';
     protected const URL_LOCATIONS_HUB = 'locations';
     protected const URL_HUBS = 'hubs';
+    protected const URL_CART = 'cart';
+    protected const URL_ORDERS = 'orders';
 
     /**
      * Method constants.
@@ -333,16 +339,16 @@ class Client
 
     /**
      * @param Cart $cart
-     * @param string $promocode
+     * @param string $promoCode
      *
      * @return Response
      */
-    public function addPromocode(Cart $cart, string $promocode): Response
+    public function addPromoCode(Cart $cart, string $promoCode): Response
     {
         return $this->sendRequest(
             vsprintf("cart/%s/add-promo-code", [$cart->getId()]),
             [
-                "voucher_code" => $promocode,
+                "voucher_code" => $promoCode,
             ],
             self::METHOD_POST,
             []
@@ -369,7 +375,7 @@ class Client
                             "currency" => $cart->getTotalPrice()->getCurrency(),
                             "value" => $cart->getTotalPrice()->getAmountInCents(),
                         ],
-                        "returnUrl" => "https://www.ijsed.nl",
+                        "returnUrl" => "adyencheckout://com.pickery.app",
                         "additionalData" => ["allow3DS2" => True],
                         "channel" => "Web",
                         "deliveryAddress" => [
@@ -393,6 +399,47 @@ class Client
             ],
             self::METHOD_POST,
             []
+        );
+    }
+
+    /**
+     * @param Cart $cart
+     *
+     * @return Order
+     */
+    public function getOrderByCart(Cart $cart): Order
+    {
+        if ($cart->hasOrder() == false) {
+            throw new Exception(self::ERROR_CART_HAS_NO_ORDER);
+        }
+
+        return $this->getOrderByIdentifier($cart->getOrderId());
+    }
+
+    /**
+     * @param Order $order
+     *
+     * @return Order
+     */
+    public function getOrder(Order $order): Order
+    {
+        return $this->getOrderByIdentifier($order->getId());
+    }
+
+    /**
+     * @param string $id
+     *
+     * @return Order
+     */
+    public function getOrderByIdentifier(string $id): Order
+    {
+        return Order::createFromApiResponse(
+            $this->sendRequest(
+                vsprintf("orders/%s", [$id]),
+                [],
+                self::METHOD_GET,
+                [],
+            )
         );
     }
 
@@ -461,6 +508,9 @@ class Client
         }
     }
 
+    /**
+     * @throws Exception
+     */
     private function assertHubIsOpened(): void
     {
         $this->hub = $this->getHubByIdentifier($this->getCurrentlySetHub()->getId());
@@ -472,6 +522,11 @@ class Client
         }
     }
 
+    /**
+     * @param string $id
+     *
+     * @return Hub
+     */
     public function getHubByIdentifier(string $id): Hub
     {
         return Hub::createFromApiResponse(

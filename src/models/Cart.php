@@ -22,6 +22,7 @@ class Cart extends Model
     protected Coordinate $deliveryCoordinate;
     protected string $email;
     protected array $lines;
+    protected ?string $orderId;
 
     /**
      * Data key constants.
@@ -36,6 +37,8 @@ class Cart extends Model
     protected const DATA_KEY_DELIVERY_COORDINATES = "delivery_coordinates";
     protected const DATA_KEY_EMAIL = "email";
     protected const DATA_KEY_PAYMENT_GATE_WAY = "payment_gateway";
+    protected const DATA_KEY_ORDER = "order";
+    protected const DATA_KEY_ORDER_ID = "id";
 
     /**
      * @param string $id
@@ -72,6 +75,22 @@ class Cart extends Model
         $this->deliveryCoordinate = $deliveryCoordinate;
         $this->email = $email;
         $this->lines = $lines;
+
+        $this->addOrderIfPresent($data);
+    }
+
+    /**
+     * @param array $data
+     */
+    private function addOrderIfPresent(array $data): void
+    {
+        $this->orderId = null;
+
+        if (isset($data[self::DATA_KEY_ORDER]) == false) {
+            // There is no order to add, continue.
+        } else {
+            $this->orderId = $data[self::DATA_KEY_ORDER][self::DATA_KEY_ORDER_ID];
+        }
     }
 
     /**
@@ -223,5 +242,25 @@ class Cart extends Model
     public function setLines(array $lines): void
     {
         $this->lines = $lines;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getOrderId(): ?string
+    {
+        return $this->orderId;
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasOrder(): bool
+    {
+        if (is_null($this->orderId)) {
+            return false;
+        } else {
+            return true;
+        }
     }
 }

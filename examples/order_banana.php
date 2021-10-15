@@ -22,6 +22,7 @@ $address = new Address(
 $client = new Client();
 $hub = $client->findHubByCoordinates($coordinate);
 $client->setHub($hub);
+
 $deliveryDuration = $client->determineDeliveryDurationToCoordinates($coordinate)->getSingleDataElement();
 $products = $client->determineAllProducts();
 $product = $products[13003041]; // Hardcoded sku of a banana
@@ -37,3 +38,15 @@ $cart = $client->createCart(
 
 $client->addPromocode($cart, "FIRST");
 $cart = $client->getCart($cart->getId());
+
+$response = $client->checkoutWithIdeal($cart, "0802"); // Checkout using bunq.
+if ($response->isError()) {
+    throw new Exception("Could not perform checkout");
+}
+// Todo: ensure that the cart is paid for.
+
+$cart = $client->getCart($cart->getId()); // After the payment, we need to update the cart to retrieve the order id.
+
+if ($cart->hasOrder()) {
+    $order = $client->getOrderByCart($cart);
+}
