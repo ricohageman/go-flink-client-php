@@ -3,6 +3,7 @@
 namespace GoFlink\Client\Models;
 
 use GoFlink\Client\Data\Coordinate;
+use GoFlink\Client\Data\Polygon;
 use GoFlink\Client\Response;
 
 class Hub extends Model
@@ -22,6 +23,7 @@ class Hub extends Model
     protected const DATA_KEY_COORDINATES = "coordinates";
     protected const DATA_KEY_DETAILS = "details";
     protected const DATA_KEY_IS_CLOSED = "is_closed";
+    protected const DATA_KEY_TURFS = "turfs";
 
     /**
      * @param string $id
@@ -50,6 +52,7 @@ class Hub extends Model
                 self::DATA_KEY_ID,
                 self::DATA_KEY_SLUG,
                 self::DATA_KEY_COORDINATES,
+                self::DATA_KEY_TURFS,
             ]
         );
 
@@ -93,5 +96,13 @@ class Hub extends Model
     public function isClosed(): bool
     {
         return $this->data[self::DATA_KEY_DETAILS][self::DATA_KEY_IS_CLOSED];
+    }
+
+    /**
+     * @return Polygon
+     */
+    public function getPolygon(): Polygon
+    {
+        return new Polygon(Coordinate::createAllFromData($this->getData()[self::DATA_KEY_TURFS][0]));
     }
 }

@@ -28,6 +28,7 @@ class Client
     protected const ERROR_FAILED_TO_CREATE_CART = "An error occurred during the creation of a cart: %s";
     protected const ERROR_FAILED_TO_UPDATE_CART = "An error occurred during updating the cart.: %s";
     protected const ERROR_CART_HAS_NO_ORDER = "The provided cart has no reference to an order.";
+    protected const ERROR_COORDINATE_IS_OUT_OF_DELIVERY_AREA_HUB = "The provided delivery coordinate is outside the delivery area of the selected hub.";
 
     /**
      * Endpoints not requiring
@@ -212,6 +213,8 @@ class Client
         string $email,
         Address $shippingAddress
     ): Cart {
+        $this->assertCoordinateIsWithinDeliveryAreaOfHub($deliveryCoordinate);
+
         $response = $this->sendRequest(
             "cart",
             [
@@ -279,6 +282,8 @@ class Client
      */
     public function updateCart(Cart $cart): Cart
     {
+        $this->assertCoordinateIsWithinDeliveryAreaOfHub($cart->getDeliveryCoordinate());
+
         $response = $this->sendRequest(
             vsprintf("cart/%s", [$cart->getId()]),
             [
@@ -519,6 +524,22 @@ class Client
             throw new Exception(self::ERROR_HUB_IS_CLOSED);
         } else {
             // Hub is still open, continue.
+        }
+    }
+
+    /**
+     * @param Coordinate $coordinate
+     *
+     * @throws Exception
+     */
+    private function assertCoordinateIsWithinDeliveryAreaOfHub(Coordinate $coordinate): void
+    {
+        $this->assertHubIsSet();
+
+        if (TurfController::isCoordinateWithinHubDeliveryArea($coordinate, $this->getCurrentlySetHub())) {
+            // The coordinate is within the delivery area of the hub, continue.
+        } else {
+            throw new Exception(self::ERROR_COORDINATE_IS_OUT_OF_DELIVERY_AREA_HUB);
         }
     }
 

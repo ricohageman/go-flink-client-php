@@ -4,6 +4,7 @@ namespace GoFlink\Client;
 
 use GoFlink\Client\Data\Coordinate;
 use GoFlink\Client\Data\Polygon;
+use GoFlink\Client\Models\Hub;
 
 /**
  * Class that is used to calculate whether a coordinate is within a set of coordinates.
@@ -11,8 +12,10 @@ use GoFlink\Client\Data\Polygon;
  */
 class TurfController
 {
-    public static function isCoordinateWithinPolygon(Coordinate $coordinate, Polygon $polygon): bool
+    public static function isCoordinateWithinHubDeliveryArea(Coordinate $coordinate, Hub $hub): bool
     {
+        $polygon = $hub->getPolygon();
+
         if (self::isCoordinateOnPolygonVertex($coordinate, $polygon)) {
             return true;
         } else if (self::IsCoordinateInsidePolygon($coordinate, $polygon)) {
@@ -28,7 +31,7 @@ class TurfController
      *
      * @return bool
      */
-    public static function isCoordinateOnPolygonVertex(Coordinate $coordinate, Polygon $polygon): bool
+    private static function isCoordinateOnPolygonVertex(Coordinate $coordinate, Polygon $polygon): bool
     {
         foreach ($polygon->getAllCoordinate() as $polygonVertex) {
             if (self::isCoordinateEqual($coordinate, $polygonVertex)) {

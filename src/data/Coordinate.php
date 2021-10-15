@@ -54,4 +54,20 @@ class Coordinate
             $data[self::DATA_KEY_LONGITUDE]
         );
     }
+
+    /**
+     * @param array $data
+     *
+     * @return Coordinate[]
+     */
+    public static function createAllFromData(array $data): array
+    {
+        $allCoordinate = [];
+
+        foreach ($data as $row) {
+            $allCoordinate[] = self::createFromData($row);
+        }
+
+        return $allCoordinate;
+    }
 }
