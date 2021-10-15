@@ -28,6 +28,14 @@ abstract class Model
     }
 
     /**
+     * @return array
+     */
+    public function getData(): array
+    {
+        return $this->data;
+    }
+
+    /**
      * @param Response $response
      * @param string[] $allRequiredElementDataKey
      */
