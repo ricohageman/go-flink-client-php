@@ -71,14 +71,6 @@ class Client
     const HEADER_USER_AGENT_DEFAULT = 'Flink/1.0.0 (Client)';
 
     /**
-     */
-    public function getAllDeliveryAreas(): array
-    {
-        throw new Exception("This request is not yet implemented, an example request is as following: " . PHP_EOL .
-            "\tGET https://consumer-api.goflink.com/v1/delivery_areas HTTP/2.0" . PHP_EOL);
-    }
-
-    /**
      * @param Coordinate $coordinate
      *
      * @return Hub
