@@ -18,6 +18,7 @@ class Client
     protected int $timeoutInSeconds = 10;
 
     protected ?Hub $hub = null;
+    protected ?string $bearerToken = null;
 
     /**
      * Error constants.
@@ -29,6 +30,7 @@ class Client
     protected const ERROR_FAILED_TO_UPDATE_CART = "An error occurred during updating the cart.: %s";
     protected const ERROR_CART_HAS_NO_ORDER = "The provided cart has no reference to an order.";
     protected const ERROR_COORDINATE_IS_OUT_OF_DELIVERY_AREA_HUB = "The provided delivery coordinate is outside the delivery area of the selected hub.";
+    protected const ERROR_NOT_AUTHENTICATED = "It is required to authenticate before performing this operation.";
 
     /**
      * Endpoints not requiring hub specification.
@@ -59,6 +61,18 @@ class Client
     protected const URL_PRODUCTS_AMOUNT_BY_SKU = 'products/amounts-by-sku';
 
     /**
+     * Endpoints not requiring authentication.
+     */
+    protected const ALL_URIS_NOT_REQUIRING_AUTHENTICATION = [
+        self::URL_DELIVERY_AREAS => true,
+        self::URL_LOCATIONS_HUB => true,
+        self::URL_HUBS => true,
+        self::URL_DELIVERY_TIME => true,
+        self::URL_PRODUCTS => true,
+        self::URL_PRODUCTS_AMOUNT_BY_SKU => true,
+    ];
+
+    /**
      * Method constants.
      */
     const METHOD_GET = "GET";
@@ -74,6 +88,7 @@ class Client
     const HEADER_USER_AGENT = 'User-Agent';
     const HEADER_NAME_HUB_ID = 'hub';
     const HEADER_NAME_HUB_SLUG = 'hub-slug';
+    const HEADER_NAME_AUTHORIZATION = 'Authorization';
 
     /**
      * Header value constants.
@@ -139,7 +154,7 @@ class Client
      */
     public function determineAllProducts(): array
     {
-        return  Product::createFromApiResponse(
+        return Product::createFromApiResponse(
             $this->sendRequest(
                 "products",
                 [],
@@ -593,6 +608,49 @@ class Client
     }
 
     /**
+     * @param string $endpoint
+     */
+    private function assertAuthenticatedIfRequired(string $endpoint): void
+    {
+        if ($this->requiresEndpointAuthentication($endpoint)) {
+            $this->assertAuthenticated();
+        } else {
+            // Endpoint requires no authentication, continue.
+        }
+    }
+
+    /**
+     * @param string $endpoint
+     * @return bool
+     */
+    private function requiresEndpointAuthentication(string $endpoint): bool
+    {
+        if (isset(self::ALL_URIS_NOT_REQUIRING_AUTHENTICATION[strtok($endpoint, '/')])) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function assertAuthenticated(): void {
+        if (is_null($this->bearerToken)) {
+            throw new Exception(self::ERROR_NOT_AUTHENTICATED);
+        }
+    }
+
+    /**
+     * @param string $bearerToken
+     * @return void
+     */
+    public function authenticateWithBearerToken(string $bearerToken)
+    {
+        $this->bearerToken = $bearerToken;
+    }
+
+    /**
      * @param string
      * @param array
      * @param string
@@ -608,6 +666,7 @@ class Client
     ): Response {
         $this->assertHubIsSetIfRequired($endpoint);
         $this->assertHubIsOpenedIfRequired($endpoint);
+        $this->assertAuthenticatedIfRequired($endpoint);
         $endpoint = $this->getEndpoint($endpoint, $filters);
 
         $curlSession = curl_init();
@@ -653,6 +712,7 @@ class Client
         $headers = [];
         $headers = array_merge($this->determineDefaultHeaders(), $headers);
         $headers = array_merge($this->determineHubHeaders(), $headers);
+        $headers = array_merge($this->determineAuthorizationHeaders(), $headers);
 
         $headers = $this->parseHeaders($headers);
 
@@ -683,6 +743,22 @@ class Client
             $headers[self::HEADER_NAME_HUB_SLUG] = $this->hub->getSlug();
         } else {
             // No hub is selected, so no headers to set.
+        }
+
+        return $headers;
+    }
+
+    /**
+     * @return string[][]
+     */
+    protected function determineAuthorizationHeaders(): array
+    {
+        $headers = [];
+
+        if (is_null($this->bearerToken)) {
+            // Not authorized, so no headers to set.
+        } else {
+            $headers[self::HEADER_NAME_AUTHORIZATION] = vsprintf("Bearer %s", [$this->bearerToken]);
         }
 
         return $headers;
