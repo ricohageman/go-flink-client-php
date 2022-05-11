@@ -31,7 +31,7 @@ class Client
     protected const ERROR_COORDINATE_IS_OUT_OF_DELIVERY_AREA_HUB = "The provided delivery coordinate is outside the delivery area of the selected hub.";
 
     /**
-     * Endpoints not requiring
+     * Endpoints not requiring hub specification.
      */
     protected const ALL_URIS_NOT_REQUIRING_HUB_SELECTED = [
         self::URL_DELIVERY_AREAS => true,
@@ -45,6 +45,18 @@ class Client
     protected const URL_HUBS = 'hubs';
     protected const URL_CART = 'cart';
     protected const URL_ORDERS = 'orders';
+
+    /**
+     * Endpoints not requiring hub to be opened.
+     */
+    protected const ALL_URIS_NOT_REQUIRING_HUB_OPENED = [
+        self::URL_DELIVERY_TIME => true,
+        self::URL_PRODUCTS => true,
+        self::URL_PRODUCTS_AMOUNT_BY_SKU => true,
+    ];
+    protected const URL_DELIVERY_TIME = 'delivery_time';
+    protected const URL_PRODUCTS = 'products';
+    protected const URL_PRODUCTS_AMOUNT_BY_SKU = 'products/amounts-by-sku';
 
     /**
      * Method constants.
@@ -498,7 +510,7 @@ class Client
      */
     private function assertHubIsOpenedIfRequired(string $endpoint): void
     {
-        if ($this->requiresEndpointHub($endpoint)) {
+        if ($this->requiresEndpointHub($endpoint) && $this->requiresEndpointOpenedHub($endpoint)) {
             $this->assertHubIsOpened();
         } else {
             // Endpoint is excepted from requirements, continue.
@@ -548,7 +560,6 @@ class Client
                 [],
                 self::METHOD_GET,
                 [],
-                true
             )
         );
     }
@@ -561,6 +572,20 @@ class Client
     private function requiresEndpointHub(string $endpoint): bool
     {
         if (isset(self::ALL_URIS_NOT_REQUIRING_HUB_SELECTED[strtok($endpoint, '/')])) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    /**
+     * @param string $endpoint
+     *
+     * @return bool
+     */
+    private function requiresEndpointOpenedHub(string $endpoint): bool
+    {
+        if (isset(self::ALL_URIS_NOT_REQUIRING_HUB_OPENED[strtok($endpoint, '/')])) {
             return false;
         } else {
             return true;

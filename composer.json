@@ -21,5 +21,6 @@
       "GoFlink\\Client\\Models\\": "src/models",
       "GoFlink\\Client\\Data\\": "src/data"
     }
-  }
+  },
+  "minimum-stability": "dev"
 }
