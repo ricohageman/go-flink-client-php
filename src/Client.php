@@ -398,6 +398,31 @@ class Client extends BaseClient
         }
     }
 
+    public function authenticate(string $email, string $password)
+    {
+        $url = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=AIzaSyB1d_TI3VVh6c0QHe_jOTph4hvMOydZyvg";
+        $params = [
+            "email" => $email,
+            "password" => $password,
+            "returnSecureToken" => true,
+        ];
+
+        $response = parent::executeRequest(
+            $url,
+            $this->timeoutInSeconds,
+            [],
+            $params,
+            self::METHOD_POST,
+            false
+        );
+
+        if ($response->isError()) {
+            throw new Exception(self::ERROR_AUTHENTICATION_FAILED);
+        }
+
+        $this->authenticateWithBearerToken($response->getSingleDataElement()["idToken"]);
+    }
+
     /**
      * @param string $bearerToken
      * @return void

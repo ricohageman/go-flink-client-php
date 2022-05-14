@@ -60,3 +60,6 @@ echo vsprintf("There are currently '%s' bananas (%s) in stock at hub '%s'" . PHP
         $client->getCurrentlySetHub()->getSlug(),
     ],
 );
+
+// Authenticate using email and password
+$client->authenticate("example@gmail.com", "password");
