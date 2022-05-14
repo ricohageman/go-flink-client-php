@@ -1,20 +1,13 @@
 <?php
 namespace GoFlink\Client;
 
-use GoFlink\Client\Data\Address;
 use GoFlink\Client\Data\Coordinate;
-use GoFlink\Client\Data\Line;
-use GoFlink\Client\Models\Cart;
 use GoFlink\Client\Models\Hub;
-use GoFlink\Client\Models\Order;
 use GoFlink\Client\Models\Product;
 
-class Client
+class Client extends BaseClient
 {
     protected string $host = "https://consumer-api.goflink.com";
-    protected string $version = "v1";
-
-    protected bool $skipSslVerification = true;
     protected int $timeoutInSeconds = 10;
 
     protected ?Hub $hub = null;
@@ -23,62 +16,62 @@ class Client
     /**
      * Error constants.
      */
+    protected const ERROR_AUTHENTICATION_FAILED = "Authenticating with username and password failed";
+    protected const ERROR_AUTHENTICATION_REQUIRED = "It is required to authenticate before performing this operation.";
     protected const ERROR_HUB_IS_REQUIRED = "It is required to assign a hub before executing this action.";
-    protected const ERROR_HUB_IS_ALREADY_SET = "There has already been an hub assigned to this client.";
     protected const ERROR_HUB_IS_CLOSED = "The selected hub is currently closed, please wait until the hub opens before performing hub specific actions.";
+    protected const ERROR_HUB_DOES_NOT_SERVE_AREA = "The provided delivery coordinate is outside the delivery area of the selected hub.";
+
     protected const ERROR_FAILED_TO_CREATE_CART = "An error occurred during the creation of a cart: %s";
     protected const ERROR_FAILED_TO_UPDATE_CART = "An error occurred during updating the cart.: %s";
     protected const ERROR_CART_HAS_NO_ORDER = "The provided cart has no reference to an order.";
-    protected const ERROR_COORDINATE_IS_OUT_OF_DELIVERY_AREA_HUB = "The provided delivery coordinate is outside the delivery area of the selected hub.";
-    protected const ERROR_NOT_AUTHENTICATED = "It is required to authenticate before performing this operation.";
+
+    /**
+     * URI's
+     */
+    protected const URL_DELIVERY_AREAS = 'delivery_areas';
+    protected const URL_FIND_HUB_BY_COORDINATES = 'locations/hub';
+    protected const URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES = 'delivery_time';
+    protected const URI_GET_ALL_PRODUCTS = 'products';
+    protected const URI_GET_PRODUCT_AVAILABILITY = 'products/amounts-by-sku';
+
+
+    /**
+     * API versions
+     */
+    protected const API_VERSION_1 = "v1";
+
+    /**
+     *
+     */
 
     /**
      * Endpoints not requiring hub specification.
      */
     protected const ALL_URIS_NOT_REQUIRING_HUB_SELECTED = [
         self::URL_DELIVERY_AREAS => true,
-        self::URL_LOCATIONS_HUB => true,
-        self::URL_HUBS => true,
-        self::URL_CART => true,
-        self::URL_ORDERS => true,
+        self::URL_FIND_HUB_BY_COORDINATES => true,
     ];
-    protected const URL_DELIVERY_AREAS = 'delivery_areas';
-    protected const URL_LOCATIONS_HUB = 'locations';
-    protected const URL_HUBS = 'hubs';
-    protected const URL_CART = 'cart';
-    protected const URL_ORDERS = 'orders';
 
     /**
      * Endpoints not requiring hub to be opened.
      */
-    protected const ALL_URIS_NOT_REQUIRING_HUB_OPENED = [
-        self::URL_DELIVERY_TIME => true,
-        self::URL_PRODUCTS => true,
-        self::URL_PRODUCTS_AMOUNT_BY_SKU => true,
+    protected const ALL_URIS_NOT_REQUIRING_HUB_OPENED = self::ALL_URIS_NOT_REQUIRING_HUB_SELECTED + [
+        self::URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES => true,
+        self::URI_GET_ALL_PRODUCTS => true,
+        self::URI_GET_PRODUCT_AVAILABILITY => true,
     ];
-    protected const URL_DELIVERY_TIME = 'delivery_time';
-    protected const URL_PRODUCTS = 'products';
-    protected const URL_PRODUCTS_AMOUNT_BY_SKU = 'products/amounts-by-sku';
 
     /**
      * Endpoints not requiring authentication.
      */
-    protected const ALL_URIS_NOT_REQUIRING_AUTHENTICATION = [
+    private const ALL_URIS_NOT_REQUIRING_AUTHENTICATION = [
         self::URL_DELIVERY_AREAS => true,
-        self::URL_LOCATIONS_HUB => true,
-        self::URL_HUBS => true,
-        self::URL_DELIVERY_TIME => true,
-        self::URL_PRODUCTS => true,
-        self::URL_PRODUCTS_AMOUNT_BY_SKU => true,
+        self::URL_FIND_HUB_BY_COORDINATES => true,
+        self::URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES => true,
+        self::URI_GET_ALL_PRODUCTS => true,
+        self::URI_GET_PRODUCT_AVAILABILITY => true,
     ];
-
-    /**
-     * Method constants.
-     */
-    const METHOD_GET = "GET";
-    const METHOD_POST = "POST";
-    const METHOD_PUT = "PUT";
-    const METHOD_DELETE = "DELETE";
 
     /**
      * Header name.
@@ -98,6 +91,41 @@ class Client
     const HEADER_USER_AGENT_DEFAULT = 'Flink/1.0.0 (Client)';
 
     /**
+     * @return Hub[]
+     */
+    public function getAllHubs(): array
+    {
+        $all_delivery_area_information_per_country = $this->sendRequest(
+            self::API_VERSION_1,
+            self::URL_DELIVERY_AREAS,
+            [],
+            self::METHOD_GET,
+            [],
+        )->getData();
+
+        $all_hubs = [];
+
+        foreach ($all_delivery_area_information_per_country as $all_delivery_area_information) {
+            foreach ($all_delivery_area_information["cities"] as $all_delivery_area_information_per_city) {
+                foreach ($all_delivery_area_information_per_city["delivery_areas"] as $delivery_area) {
+                    $all_hubs[$delivery_area["slug"]] = new Hub(
+                        $delivery_area["id"],
+                        $delivery_area["slug"],
+                        Coordinate::createFromData($delivery_area["default_location"]),
+                        $delivery_area + [
+                            "city" => $all_delivery_area_information_per_city["id"],
+                            "city_name" => $all_delivery_area_information_per_city["name"],
+                            "country" => $all_delivery_area_information["id"],
+                        ]
+                    );
+                }
+            }
+        }
+
+        return $all_hubs;
+    }
+
+    /**
      * @param Coordinate $coordinate
      *
      * @return Hub
@@ -106,7 +134,8 @@ class Client
     {
         return Hub::createFromApiResponse(
             $this->sendRequest(
-                "locations/hub",
+                self::API_VERSION_1,
+                self::URL_FIND_HUB_BY_COORDINATES,
                 [],
                 self::METHOD_GET,
                 [
@@ -127,7 +156,8 @@ class Client
         $this->assertHubIsSet();
 
         return $this->sendRequest(
-            "delivery_time",
+            self::API_VERSION_1,
+            self::URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES,
             [],
             self::METHOD_GET,
             [
@@ -156,7 +186,8 @@ class Client
     {
         return Product::createFromApiResponse(
             $this->sendRequest(
-                "products",
+                self::API_VERSION_1,
+                self::URI_GET_ALL_PRODUCTS,
                 [],
                 self::METHOD_GET,
                 []
@@ -172,31 +203,14 @@ class Client
     public function getAvailabilityOfProducts(array $allProduct): Response
     {
         return $this->sendRequest(
-            "products/amounts-by-sku",
+            self::API_VERSION_1,
+            self::URI_GET_PRODUCT_AVAILABILITY,
             [
-                "product_ids" => $this->determineAllProductIdByAllProduct($allProduct),
                 "product_skus" => $this->determineAllProductSkuByAllProduct($allProduct),
             ],
             self::METHOD_POST,
             []
         );
-    }
-
-    /**
-     * @param Product[] $allProduct
-     *
-     * @return string[]
-     */
-    private function determineAllProductIdByAllProduct(array $allProduct): array
-    {
-        $allProductId = [];
-
-        foreach ($allProduct as $product)
-        {
-            $allProductId[] = $product->getId();
-        }
-
-        return $allProductId;
     }
 
     /**
@@ -217,268 +231,11 @@ class Client
     }
 
     /**
-     * @param Address $billingAddress
-     * @param Coordinate $deliveryCoordinate
-     * @param Line[] $lines
-     * @param string $email
-     * @param Address $shippingAddress
-     * @return Cart
-     * @throws Exception
-     */
-    public function createCart(
-        Address $billingAddress,
-        Coordinate $deliveryCoordinate,
-        array $lines,
-        string $email,
-        Address $shippingAddress
-    ): Cart {
-        $this->assertCoordinateIsWithinDeliveryAreaOfHub($deliveryCoordinate);
-
-        $response = $this->sendRequest(
-            "cart",
-            [
-                "billing_address" => [
-                    "city" => $billingAddress->getCity(),
-                    "country" => $billingAddress->getCountry(),
-                    "first_name" => $billingAddress->getName()->getFirstName(),
-                    "last_name" => $billingAddress->getName()->getLastName(),
-                    "phone" => $billingAddress->getPhone(),
-                    "postal_code" => $billingAddress->getPostalCode(),
-                    "street_address_1" => $billingAddress->getStreetAddressOne(),
-                ],
-                "delivery_coordinates" => [
-                    "latitude" => $deliveryCoordinate->getLatitude(),
-                    "longitude" => $deliveryCoordinate->getLongitude(),
-                ],
-                "delivery_eta" => "10",
-                "lines" => $this->determineAllLines($lines),
-                "email" => $email,
-                "shipping_address" => [
-                    "city" => $shippingAddress->getCity(),
-                    "country" => $shippingAddress->getCountry(),
-                    "first_name" => $shippingAddress->getName()->getFirstName(),
-                    "last_name" => $shippingAddress->getName()->getLastName(),
-                    "phone" => $shippingAddress->getPhone(),
-                    "postal_code" => $shippingAddress->getPostalCode(),
-                    "street_address_1" => $shippingAddress->getStreetAddressOne(),
-                ],
-            ],
-            self::METHOD_POST,
-            []
-        );
-
-        if ($response->isError()) {
-            throw new Exception(vsprintf(self::ERROR_FAILED_TO_CREATE_CART, [$response->getErrorMessage()]));
-        } else {
-            return $this->getCart($response->getSingleDataElement()["id"]);
-        }
-    }
-
-    /**
-     * @param Line[] $lines
-     *
-     * @return string[][]
-     */
-    private function determineAllLines(array $lines): array
-    {
-        $allLines = [];
-
-        foreach ($lines as $line)
-        {
-            $allLines[] = [
-                "product_sku" => $line->getProductSku(),
-                "quantity" => $line->getQuantity(),
-            ];
-        }
-
-        return $allLines;
-    }
-
-    /**
-     * @param Cart $cart
-     *
-     * @return Cart
-     */
-    public function updateCart(Cart $cart): Cart
-    {
-        $this->assertCoordinateIsWithinDeliveryAreaOfHub($cart->getDeliveryCoordinate());
-
-        $response = $this->sendRequest(
-            vsprintf("cart/%s", [$cart->getId()]),
-            [
-                "billing_address" => [
-                    "city" => $cart->getBillingAddress()->getCity(),
-                    "country" => $cart->getBillingAddress()->getCountry(),
-                    "first_name" => $cart->getBillingAddress()->getName()->getFirstName(),
-                    "last_name" => $cart->getBillingAddress()->getName()->getLastName(),
-                    "phone" => $cart->getBillingAddress()->getPhone(),
-                    "postal_code" => $cart->getBillingAddress()->getPostalCode(),
-                    "street_address_1" => $cart->getBillingAddress()->getStreetAddressOne(),
-                ],
-                "delivery_coordinates" => [
-                    "latitude" => $cart->getDeliveryCoordinate()->getLatitude(),
-                    "longitude" => $cart->getDeliveryCoordinate()->getLongitude(),
-                ],
-                "delivery_eta" => "10",
-                "lines" => $this->determineAllLines($cart->getLines()),
-                "email" => $cart->getEmail(),
-                "shipping_address" => [
-                    "city" => $cart->getShippingAddress()->getCity(),
-                    "country" => $cart->getShippingAddress()->getCountry(),
-                    "first_name" => $cart->getShippingAddress()->getName()->getFirstName(),
-                    "last_name" => $cart->getShippingAddress()->getName()->getLastName(),
-                    "phone" => $cart->getShippingAddress()->getPhone(),
-                    "postal_code" => $cart->getShippingAddress()->getPostalCode(),
-                    "street_address_1" => $cart->getShippingAddress()->getStreetAddressOne(),
-                ],
-            ],
-            self::METHOD_PUT,
-            []
-        );
-
-        if ($response->isError()) {
-            var_dump($response);
-            throw new Exception(vsprintf(self::ERROR_FAILED_TO_UPDATE_CART, [$response->getErrorMessage()]));
-        } else {
-            return $this->getCart($cart->getId());
-        }
-    }
-
-    /**
-     * @param string $id
-     *
-     * @return Cart
-     */
-    public function getCart(string $id): Cart
-    {
-        return Cart::createFromApiResponse(
-            $this->sendRequest(
-                vsprintf("cart/%s", [$id]),
-                [],
-                self::METHOD_GET,
-                []
-            )
-        );
-    }
-
-    /**
-     * @param Cart $cart
-     * @param string $promoCode
-     *
-     * @return Response
-     */
-    public function addPromoCode(Cart $cart, string $promoCode): Response
-    {
-        return $this->sendRequest(
-            vsprintf("cart/%s/add-promo-code", [$cart->getId()]),
-            [
-                "voucher_code" => $promoCode,
-            ],
-            self::METHOD_POST,
-            []
-        );
-    }
-
-    /**
-     * @param Cart $cart
-     * @param string $issuer
-     *
-     * @return Response
-     */
-    public function checkoutWithIdeal(Cart $cart, string $issuer): Response
-    {
-        return $this->sendRequest(
-            vsprintf("cart/%s/checkout", [$cart->getId()]),
-            [
-                "amount" => $cart->getTotalPrice()->getAmount(),
-                "token" => json_encode(
-                    [
-                        "paymentMethod" => ["type" => "ideal", "issuer" => $issuer],
-                        "storePaymentMethod" => False,
-                        "amount" => [
-                            "currency" => $cart->getTotalPrice()->getCurrency(),
-                            "value" => $cart->getTotalPrice()->getAmountInCents(),
-                        ],
-                        "returnUrl" => "adyencheckout://com.pickery.app",
-                        "additionalData" => ["allow3DS2" => True],
-                        "channel" => "Web",
-                        "deliveryAddress" => [
-                            "city" => $cart->getShippingAddress()->getCity(),
-                            "country" => $cart->getShippingAddress()->getCountry(),
-                            "houseNumberOrName" => $cart->getShippingAddress()->getHouseNumber(),
-                            "postalCode" => $cart->getShippingAddress()->getPostalCode(),
-                            "street" => $cart->getShippingAddress()->getStreet()
-                        ],
-                        "billingAddress" => [
-                            "city" => $cart->getBillingAddress()->getCity(),
-                            "country" => $cart->getBillingAddress()->getCountry(),
-                            "houseNumberOrName" => $cart->getBillingAddress()->getHouseNumber(),
-                            "postalCode" => $cart->getBillingAddress()->getPostalCode(),
-                            "street" => $cart->getBillingAddress()->getStreet()
-                        ],
-                        "shopperEmail" => $cart->getEmail(),
-                    ],
-                    JSON_UNESCAPED_UNICODE
-                ),
-            ],
-            self::METHOD_POST,
-            []
-        );
-    }
-
-    /**
-     * @param Cart $cart
-     *
-     * @return Order
-     */
-    public function getOrderByCart(Cart $cart): Order
-    {
-        if ($cart->hasOrder() == false) {
-            throw new Exception(self::ERROR_CART_HAS_NO_ORDER);
-        }
-
-        return $this->getOrderByIdentifier($cart->getOrderId());
-    }
-
-    /**
-     * @param Order $order
-     *
-     * @return Order
-     */
-    public function getOrder(Order $order): Order
-    {
-        return $this->getOrderByIdentifier($order->getId());
-    }
-
-    /**
-     * @param string $id
-     *
-     * @return Order
-     */
-    public function getOrderByIdentifier(string $id): Order
-    {
-        return Order::createFromApiResponse(
-            $this->sendRequest(
-                vsprintf("orders/%s", [$id]),
-                [],
-                self::METHOD_GET,
-                [],
-            )
-        );
-    }
-
-    /**
      * @param Hub $hub
-     *
-     * @throws Exception
      */
     public function setHub(Hub $hub): void
     {
-        if ($this->isHubSet()) {
-            throw new Exception(self::ERROR_HUB_IS_ALREADY_SET);
-        } else {
-            $this->hub = $hub;
-        }
+        $this->hub = $hub;
     }
 
     /**
@@ -558,7 +315,7 @@ class Client
         if (TurfController::isCoordinateWithinHubDeliveryArea($coordinate, $this->getCurrentlySetHub())) {
             // The coordinate is within the delivery area of the hub, continue.
         } else {
-            throw new Exception(self::ERROR_COORDINATE_IS_OUT_OF_DELIVERY_AREA_HUB);
+            throw new Exception(self::ERROR_HUB_DOES_NOT_SERVE_AREA);
         }
     }
 
@@ -586,7 +343,7 @@ class Client
      */
     private function requiresEndpointHub(string $endpoint): bool
     {
-        if (isset(self::ALL_URIS_NOT_REQUIRING_HUB_SELECTED[strtok($endpoint, '/')])) {
+        if (isset(self::ALL_URIS_NOT_REQUIRING_HUB_SELECTED[$endpoint])) {
             return false;
         } else {
             return true;
@@ -600,7 +357,7 @@ class Client
      */
     private function requiresEndpointOpenedHub(string $endpoint): bool
     {
-        if (isset(self::ALL_URIS_NOT_REQUIRING_HUB_OPENED[strtok($endpoint, '/')])) {
+        if (isset(self::ALL_URIS_NOT_REQUIRING_HUB_OPENED[$endpoint])) {
             return false;
         } else {
             return true;
@@ -625,7 +382,7 @@ class Client
      */
     private function requiresEndpointAuthentication(string $endpoint): bool
     {
-        if (isset(self::ALL_URIS_NOT_REQUIRING_AUTHENTICATION[strtok($endpoint, '/')])) {
+        if (isset(self::ALL_URIS_NOT_REQUIRING_AUTHENTICATION[$endpoint])) {
             return false;
         } else {
             return true;
@@ -637,7 +394,7 @@ class Client
      */
     private function assertAuthenticated(): void {
         if (is_null($this->bearerToken)) {
-            throw new Exception(self::ERROR_NOT_AUTHENTICATED);
+            throw new Exception(self::ERROR_AUTHENTICATION_REQUIRED);
         }
     }
 
@@ -658,7 +415,8 @@ class Client
      *
      * @return Response
      */
-    public function sendRequest(
+    protected function sendRequest(
+        string $api_version,
         string $endpoint,
         array $params = [],
         string $method = self::METHOD_GET,
@@ -669,39 +427,13 @@ class Client
         $this->assertAuthenticatedIfRequired($endpoint);
         $endpoint = $this->getEndpoint($endpoint, $filters);
 
-        $curlSession = curl_init();
-
-        curl_setopt($curlSession, CURLOPT_HEADER, false);
-        curl_setopt($curlSession, CURLOPT_RETURNTRANSFER, true);
-
-        curl_setopt($curlSession, CURLOPT_URL, $this->getUrl($endpoint));
-        curl_setopt($curlSession, CURLOPT_TIMEOUT, $this->timeoutInSeconds);
-        curl_setopt($curlSession, CURLOPT_HTTPHEADER, $this->determineAllHeaders());
-
-        $this->setSslVerification($curlSession);
-        $this->setPostData($curlSession, $method, $params);
-
-        $apiResult = curl_exec($curlSession);
-        $headerInfo = curl_getinfo($curlSession);
-
-        if ($this->isCurlFailed($apiResult))
-            $response = Response::createFromCurlError($curlSession);
-        else
-            $response = Response::createFromHttpResponse($headerInfo, $apiResult);
-
-        curl_close($curlSession);
-
-        return $response;
-    }
-
-    /**
-     * @param $apiResult
-     *
-     * @return bool
-     */
-    private function isCurlFailed($apiResult): bool
-    {
-        return $apiResult === false;
+        return parent::executeRequest(
+            $this->getUrl($api_version, $endpoint),
+            $this->timeoutInSeconds,
+            $this->determineAllHeaders(),
+            $params,
+            $method,
+        );
     }
 
     /**
@@ -781,11 +513,119 @@ class Client
     }
 
     /**
+     * @param string $endpoint
+     *
+     * @return string
+     */
+    protected function getUrl(string $api_version, string $endpoint): string
+    {
+        return $this->host . '/' . $api_version . '/' . $endpoint;
+    }
+
+    /**
+     * @param string $endpoint
+     * @param string[] $filters
+     *
+     * @return string
+     */
+    protected function getEndpoint(string $endpoint, array $filters): string
+    {
+        if (empty($filters)) {
+            return $endpoint;
+        }
+
+        $endpoint .= "?";
+
+        foreach ($filters as $key => $value) {
+            $endpoint .= vsprintf("%s=%s&", [$key, urlencode($value)]);
+        }
+
+        return $endpoint;
+    }
+}
+
+
+class BaseClient {
+    protected bool $skipSslVerification = true;
+
+    /**
+     * Method constants.
+     */
+    const METHOD_GET = "GET";
+    const METHOD_POST = "POST";
+    const METHOD_PUT = "PUT";
+    const METHOD_DELETE = "DELETE";
+
+    protected function executeRequest(
+        string $url,
+        int $timeout_in_seconds,
+        array $headers = [],
+        array $params = [],
+        string $method = self::METHOD_GET,
+        bool $json_format = true
+    ): Response {
+        $curlSession = curl_init();
+
+        curl_setopt($curlSession, CURLOPT_HEADER, false);
+        curl_setopt($curlSession, CURLOPT_RETURNTRANSFER, true);
+
+        curl_setopt($curlSession, CURLOPT_URL, $url);
+        curl_setopt($curlSession, CURLOPT_TIMEOUT, $timeout_in_seconds);
+        curl_setopt($curlSession, CURLOPT_HTTPHEADER, $headers);
+
+        $this->setSslVerification($curlSession);
+
+        if ($json_format) {
+            $this->setJsonPostData($curlSession, $method, $params);
+        } else {
+            $this->setQueryPostData($curlSession, $method, $params);
+        }
+
+
+        $apiResult = curl_exec($curlSession);
+        $headerInfo = curl_getinfo($curlSession);
+
+        if ($this->isCurlFailed($apiResult))
+            $response = Response::createFromCurlError($curlSession);
+        else
+            $response = Response::createFromHttpResponse($headerInfo, $apiResult);
+
+        curl_close($curlSession);
+
+        return $response;
+    }
+
+    /**
+     * @param $apiResult
+     *
+     * @return bool
+     */
+    private function isCurlFailed($apiResult): bool
+    {
+        return $apiResult === false;
+    }
+
+    /**
      * @param $curlSession
      * @param $method
      * @param $params
      */
-    protected function setPostData($curlSession, $method, $params): void
+    protected function setQueryPostData($curlSession, $method, $params): void
+    {
+        if (!in_array($method, [self::METHOD_POST, self::METHOD_PUT, self::METHOD_DELETE])) {
+            return;
+        }
+
+        curl_setopt($curlSession, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($curlSession, CURLOPT_POSTFIELDS, http_build_query($params));
+    }
+
+    /**
+     * @param $curlSession
+     * @param $method
+     * @param $params
+     */
+    protected function setJsonPostData($curlSession, $method, $params): void
     {
         if (!in_array($method, [self::METHOD_POST, self::METHOD_PUT, self::METHOD_DELETE])) {
             return;
@@ -806,39 +646,5 @@ class Client
             curl_setopt($curlSession, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($curlSession, CURLOPT_SSL_VERIFYHOST, false);
         }
-    }
-
-    /**
-     * @param string $endpoint
-     *
-     * @return string
-     */
-    protected function getUrl(string $endpoint): string
-    {
-        return $this->host . '/' . $this->version . '/' . $endpoint;
-    }
-
-    /**
-     * @param string $endpoint
-     * @param string[] $filters
-     *
-     * @return string
-     */
-    protected function getEndpoint(string $endpoint, array $filters): string
-    {
-        if (! empty($filters)) {
-            $i = 0;
-            foreach ($filters as $key => $value) {
-                if ($i == 0) {
-                    $endpoint .= '?';
-                } else {
-                    $endpoint .= '&';
-                }
-                $endpoint .= $key . '=' . urlencode($value);
-                $i++;
-            }
-        }
-
-        return $endpoint;
     }
 }

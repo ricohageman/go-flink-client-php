@@ -30,7 +30,7 @@ class Hub extends Model
      * @param string $slug
      * @param array $data
      */
-    protected function __construct(string $id, string $slug, Coordinate $coordinate, array $data)
+    public function __construct(string $id, string $slug, Coordinate $coordinate, array $data)
     {
         parent::__construct($data);
 
