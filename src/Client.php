@@ -209,12 +209,20 @@ class Client extends BaseClient
      */
     public function getAvailabilityOfProducts(array $allProduct): Response
     {
+        return $this->getAvailabilityOfProductsBySku($this->determineAllProductSkuByAllProduct($allProduct));
+    }
+
+    /**
+     * @param int[] $allProductSku
+     *
+     * @return Response
+     */
+    public function getAvailabilityOfProductsBySku(array $allProductSku): Response
+    {
         return $this->sendRequest(
             self::API_VERSION_1,
             self::URI_GET_PRODUCT_AVAILABILITY,
-            [
-                "product_skus" => $this->determineAllProductSkuByAllProduct($allProduct),
-            ],
+            ["product_skus" => $allProductSku],
             self::METHOD_POST,
             []
         );
