@@ -8,7 +8,7 @@ use GoFlink\Client\Models\Product;
 class Client extends BaseClient
 {
     protected string $host = "https://consumer-api.goflink.com";
-    protected int $timeoutInSeconds = 10;
+    protected int $timeoutInSeconds;
 
     protected ?Hub $hub = null;
     protected ?string $bearerToken = null;
@@ -89,6 +89,13 @@ class Client extends BaseClient
     const HEADER_LOCALE_DEFAULT = 'en-NL';
     const HEADER_CONTENT_TYPE_DEFAULT = 'application/json';
     const HEADER_USER_AGENT_DEFAULT = 'Flink/1.0.0 (Client)';
+
+    /**
+     * @param int $timeout_in_seconds
+     */
+    function __construct(int $timeout_in_seconds = 10) {
+        $this->timeoutInSeconds = $timeout_in_seconds;
+    }
 
     /**
      * @return Hub[]
