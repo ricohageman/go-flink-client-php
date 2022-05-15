@@ -4,6 +4,7 @@ namespace GoFlink\Client\Models;
 
 use GoFlink\Client\Data\Coordinate;
 use GoFlink\Client\Data\Polygon;
+use GoFlink\Client\Exception;
 use GoFlink\Client\Response;
 
 class Hub extends Model
@@ -13,7 +14,6 @@ class Hub extends Model
      */
     protected string $id;
     protected string $slug;
-    protected Coordinate $coordinate;
 
     /**
      * Data key constants.
@@ -30,13 +30,12 @@ class Hub extends Model
      * @param string $slug
      * @param array $data
      */
-    public function __construct(string $id, string $slug, Coordinate $coordinate, array $data)
+    public function __construct(string $id, string $slug, array $data = [])
     {
         parent::__construct($data);
 
         $this->id = $id;
         $this->slug = $slug;
-        $this->coordinate = $coordinate;
     }
 
     /**
@@ -61,7 +60,6 @@ class Hub extends Model
         return new Hub(
             $data[self::DATA_KEY_ID],
             $data[self::DATA_KEY_SLUG],
-            Coordinate::createFromData($data[self::DATA_KEY_COORDINATES]),
             $data
         );
     }
@@ -85,9 +83,13 @@ class Hub extends Model
     /**
      * @return Coordinate
      */
-    public function getCoordinates(): Coordinate
+    public function getCoordinate(): Coordinate
     {
-        return $this->coordinate;
+        if (!isset($this->getData()[self::DATA_KEY_COORDINATES])) {
+            throw new Exception("The coordinate of this hub is unknown");
+        }
+
+        return Coordinate::createFromData($this->getData()[self::DATA_KEY_COORDINATES]);
     }
 
     /**

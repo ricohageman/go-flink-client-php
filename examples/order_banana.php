@@ -16,17 +16,18 @@ $client->setHub($selected_hub);
 echo vsprintf("Randomly selected hub '%s' which is located at (%s, %s)." . PHP_EOL,
     [
         $selected_hub->getSlug(),
-        $selected_hub->getCoordinates()->getLatitude(),
-        $selected_hub->getCoordinates()->getLongitude(),
+        $selected_hub->getCoordinate()->getLatitude(),
+        $selected_hub->getCoordinate()->getLongitude(),
     ],
 );
 
 // Find the hub serving the selected coordinate
 $hub = $client->findHubByCoordinates($coordinate);
 $client->setHub($hub);
-echo vsprintf("Selected the hub '%s' to serve the coordinate (%s, %s)." . PHP_EOL,
+echo vsprintf("Selected the hub '%s' ('%s') to serve the coordinate (%s, %s)." . PHP_EOL,
     [
         $hub->getSlug(),
+        $hub->getId(),
         $coordinate->getLatitude(),
         $coordinate->getLongitude(),
     ],
@@ -53,6 +54,7 @@ $product = $products[13003041];
 
 // Get the availability of the banana
 $availability = $client->getAvailabilityOfProducts([$product])->getSingleDataElement();
+$availability = $client->getAvailabilityOfProductsBySku(["13003041"])->getSingleDataElement();
 echo vsprintf("There are currently '%s' bananas (%s) in stock at hub '%s'" . PHP_EOL,
     [
         $availability["quantity"],

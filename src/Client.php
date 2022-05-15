@@ -118,11 +118,11 @@ class Client extends BaseClient
                     $all_hubs[$delivery_area["slug"]] = new Hub(
                         $delivery_area["id"],
                         $delivery_area["slug"],
-                        Coordinate::createFromData($delivery_area["default_location"]),
                         $delivery_area + [
                             "city" => $all_delivery_area_information_per_city["id"],
                             "city_name" => $all_delivery_area_information_per_city["name"],
                             "country" => $all_delivery_area_information["id"],
+                            "coordinates" => $delivery_area["default_location"]
                         ]
                     );
                 }
@@ -171,8 +171,8 @@ class Client extends BaseClient
                 "hub_coords" => vsprintf(
                     "%s,%s",
                     [
-                        $this->getCurrentlySetHub()->getCoordinates()->getLatitude(),
-                        $this->getCurrentlySetHub()->getCoordinates()->getLongitude(),
+                        $this->getCurrentlySetHub()->getCoordinate()->getLatitude(),
+                        $this->getCurrentlySetHub()->getCoordinate()->getLongitude(),
                     ]
                 ),
                 "delivery_coords" => vsprintf(
@@ -213,7 +213,7 @@ class Client extends BaseClient
     }
 
     /**
-     * @param int[] $allProductSku
+     * @param string[] $allProductSku
      *
      * @return Response
      */
@@ -448,10 +448,11 @@ class Client extends BaseClient
     }
 
     /**
-     * @param string
-     * @param array
-     * @param string
-     * @param array
+     * @param string $api_version
+     * @param string $endpoint
+     * @param array $params
+     * @param string $method
+     * @param array $filters
      *
      * @return Response
      */
