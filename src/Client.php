@@ -34,12 +34,14 @@ class Client extends BaseClient
     protected const URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES = 'delivery_time';
     protected const URI_GET_ALL_PRODUCTS = 'products';
     protected const URI_GET_PRODUCT_AVAILABILITY = 'products/amounts-by-sku';
+    protected const URI_GET_PRODUCT_PRICE = 'products/prices';
 
 
     /**
      * API versions
      */
     protected const API_VERSION_1 = "v1";
+    protected const API_VERSION_2 = "v2";
 
     /**
      *
@@ -60,6 +62,7 @@ class Client extends BaseClient
         self::URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES => true,
         self::URI_GET_ALL_PRODUCTS => true,
         self::URI_GET_PRODUCT_AVAILABILITY => true,
+        self::URI_GET_PRODUCT_PRICE => true,
     ];
 
     /**
@@ -71,6 +74,7 @@ class Client extends BaseClient
         self::URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES => true,
         self::URI_GET_ALL_PRODUCTS => true,
         self::URI_GET_PRODUCT_AVAILABILITY => true,
+        self::URI_GET_PRODUCT_PRICE => true,
     ];
 
     /**
@@ -243,6 +247,32 @@ class Client extends BaseClient
         }
 
         return $allProductId;
+    }
+
+    /**
+     * @param Product[] $allProduct
+     *
+     * @return Response
+     */
+    public function getPriceOfProducts(array $allProduct): Response
+    {
+        return $this->getPriceOfProductsBySku($this->determineAllProductSkuByAllProduct($allProduct));
+    }
+
+    /**
+     * @param string[] $allProductSku
+     *
+     * @return Response
+     */
+    public function getPriceOfProductsBySku(array $allProductSku): Response
+    {
+        return $this->sendRequest(
+            self::API_VERSION_2,
+            self::URI_GET_PRODUCT_PRICE,
+            $allProductSku,
+            self::METHOD_POST,
+            []
+        );
     }
 
     /**
