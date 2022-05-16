@@ -65,3 +65,5 @@ echo vsprintf("There are currently '%s' bananas (%s) in stock at hub '%s'" . PHP
 
 // Authenticate using email and password
 $client->authenticate("example@gmail.com", "password");
+$addresses = $client->createAddress("Markt 80", "2611G", "Delft", "NL", $coordinate, false);
+$addresses = $client->deleteAddress($addresses[0]);

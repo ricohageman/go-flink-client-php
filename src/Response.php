@@ -113,8 +113,15 @@ class Response
      */
     public function getData(): array
     {
-
         return $this->data;
+    }
+
+    /**
+     * @param array $data
+     */
+    public function mutateData(array $data): void
+    {
+        $this->data = $data;
     }
 
     /**

@@ -2,6 +2,7 @@
 namespace GoFlink\Client;
 
 use GoFlink\Client\Data\Coordinate;
+use GoFlink\Client\Models\Address;
 use GoFlink\Client\Models\Hub;
 use GoFlink\Client\Models\Product;
 
@@ -31,11 +32,13 @@ class Client extends BaseClient
      */
     protected const URL_DELIVERY_AREAS = 'delivery_areas';
     protected const URL_FIND_HUB_BY_COORDINATES = 'locations/hub';
+    protected const URI_GET_HUB_BY_IDENTIFIER = 'hubs/%s';
     protected const URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES = 'delivery_time';
     protected const URI_GET_ALL_PRODUCTS = 'products';
     protected const URI_GET_PRODUCT_AVAILABILITY = 'products/amounts-by-sku';
     protected const URI_GET_PRODUCT_PRICE = 'products/prices';
-
+    protected const URI_ADDRESSES = 'address';
+    protected const URI_DELETE_ADDRESS = 'address/%s';
 
     /**
      * API versions
@@ -44,15 +47,14 @@ class Client extends BaseClient
     protected const API_VERSION_2 = "v2";
 
     /**
-     *
-     */
-
-    /**
      * Endpoints not requiring hub specification.
      */
     protected const ALL_URIS_NOT_REQUIRING_HUB_SELECTED = [
         self::URL_DELIVERY_AREAS => true,
         self::URL_FIND_HUB_BY_COORDINATES => true,
+        self::URI_GET_HUB_BY_IDENTIFIER => true,
+        self::URI_ADDRESSES => true,
+        self::URI_DELETE_ADDRESS => true,
     ];
 
     /**
@@ -69,6 +71,7 @@ class Client extends BaseClient
      * Endpoints not requiring authentication.
      */
     private const ALL_URIS_NOT_REQUIRING_AUTHENTICATION = [
+        self::URI_GET_HUB_BY_IDENTIFIER => true,
         self::URL_DELIVERY_AREAS => true,
         self::URL_FIND_HUB_BY_COORDINATES => true,
         self::URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES => true,
@@ -110,6 +113,7 @@ class Client extends BaseClient
             self::API_VERSION_1,
             self::URL_DELIVERY_AREAS,
             [],
+            [],
             self::METHOD_GET,
             [],
         )->getData();
@@ -148,6 +152,7 @@ class Client extends BaseClient
                 self::API_VERSION_1,
                 self::URL_FIND_HUB_BY_COORDINATES,
                 [],
+                [],
                 self::METHOD_GET,
                 [
                     "lat" => $coordinate->getLatitude(),
@@ -169,6 +174,7 @@ class Client extends BaseClient
         return $this->sendRequest(
             self::API_VERSION_1,
             self::URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES,
+            [],
             [],
             self::METHOD_GET,
             [
@@ -200,6 +206,7 @@ class Client extends BaseClient
                 self::API_VERSION_1,
                 self::URI_GET_ALL_PRODUCTS,
                 [],
+                [],
                 self::METHOD_GET,
                 []
             )
@@ -226,6 +233,7 @@ class Client extends BaseClient
         return $this->sendRequest(
             self::API_VERSION_1,
             self::URI_GET_PRODUCT_AVAILABILITY,
+            [],
             ["product_skus" => $allProductSku],
             self::METHOD_POST,
             []
@@ -269,9 +277,69 @@ class Client extends BaseClient
         return $this->sendRequest(
             self::API_VERSION_2,
             self::URI_GET_PRODUCT_PRICE,
+            [],
             $allProductSku,
             self::METHOD_POST,
             []
+        );
+    }
+
+    /**
+     * @param string $street_address
+     * @param string $post_code
+     * @param string $city
+     * @param Coordinate $coordinate
+     * @param bool $is_default
+     * @param string $comment
+     *
+     * @return Address[]
+     */
+    public function createAddress(
+        string $street_address,
+        string $post_code,
+        string $city,
+        string $country_code,
+        Coordinate $coordinate,
+        bool $is_default = true,
+        string $comment = ""
+    ): array {
+        return Address::createAllFromApiResponse(
+            $this->sendRequest(
+                self::API_VERSION_1,
+                self::URI_ADDRESSES,
+                [],
+                [
+                    "street_address" => $street_address,
+                    "post_code" => $post_code,
+                    "city" => $city,
+                    "country_code" => $country_code,
+                    "latitude" => $coordinate->getLatitude(),
+                    "longitude" => $coordinate->getLongitude(),
+                    "is_default" => $is_default,
+                    "comment" => $comment,
+                ],
+                self::METHOD_POST,
+                [],
+            )
+        );
+    }
+
+    /**
+     * @param Address $address
+     *
+     * @return Address[]
+     */
+    public function deleteAddress(Address $address): array
+    {
+        return Address::createAllFromApiResponse(
+            $this->sendRequest(
+                self::API_VERSION_1,
+                self::URI_DELETE_ADDRESS,
+                [$address->getId()],
+                [],
+                self::METHOD_DELETE,
+                [],
+            )
         );
     }
 
@@ -373,7 +441,9 @@ class Client extends BaseClient
     {
         return Hub::createFromApiResponse(
             $this->sendRequest(
-                vsprintf("hubs/%s", [$id]),
+                self::API_VERSION_1,
+                self::URI_GET_HUB_BY_IDENTIFIER,
+                [$id],
                 [],
                 self::METHOD_GET,
                 [],
@@ -489,6 +559,7 @@ class Client extends BaseClient
     protected function sendRequest(
         string $api_version,
         string $endpoint,
+        array $endpoint_values,
         array $params = [],
         string $method = self::METHOD_GET,
         array $filters = []
@@ -496,7 +567,7 @@ class Client extends BaseClient
         $this->assertHubIsSetIfRequired($endpoint);
         $this->assertHubIsOpenedIfRequired($endpoint);
         $this->assertAuthenticatedIfRequired($endpoint);
-        $endpoint = $this->getEndpoint($endpoint, $filters);
+        $endpoint = $this->getEndpoint($endpoint, $endpoint_values, $filters);
 
         return parent::executeRequest(
             $this->getUrl($api_version, $endpoint),
@@ -599,8 +670,10 @@ class Client extends BaseClient
      *
      * @return string
      */
-    protected function getEndpoint(string $endpoint, array $filters): string
+    protected function getEndpoint(string $endpoint, array $values, array $filters): string
     {
+        $endpoint = vsprintf($endpoint, $values);
+
         if (empty($filters)) {
             return $endpoint;
         }
