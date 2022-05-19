@@ -2,7 +2,10 @@
 namespace GoFlink\Client;
 
 use GoFlink\Client\Data\Coordinate;
+use GoFlink\Client\Data\Name;
+use GoFlink\Client\Data\ShippingAddress;
 use GoFlink\Client\Models\Address;
+use GoFlink\Client\Models\Cart;
 use GoFlink\Client\Models\Hub;
 use GoFlink\Client\Models\Product;
 
@@ -33,12 +36,20 @@ class Client extends BaseClient
     protected const URL_DELIVERY_AREAS = 'delivery_areas';
     protected const URL_FIND_HUB_BY_COORDINATES = 'locations/hub';
     protected const URI_GET_HUB_BY_IDENTIFIER = 'hubs/%s';
+    protected const URI_GET_HUB_BY_SLUG = 'hubs/slug/%s';
     protected const URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES = 'delivery_time';
     protected const URI_GET_ALL_PRODUCTS = 'products';
     protected const URI_GET_PRODUCT_AVAILABILITY = 'products/amounts-by-sku';
     protected const URI_GET_PRODUCT_PRICE = 'products/prices';
     protected const URI_ADDRESSES = 'address';
     protected const URI_DELETE_ADDRESS = 'address/%s';
+    protected const URI_CREATE_CART = 'cart';
+    protected const URI_GET_CART = 'cart/%s';
+    protected const URI_GET_PAYMENT_METHODS = 'cart/%s/payment-methods';
+    protected const URI_ADD_PROMO_CODE = 'cart/%s/add-promo-code';
+    protected const URI_ADD_TIP = 'cart/%s/rider-tip';
+    protected const URI_ADD_PRODUCT = 'cart/%s';
+    protected const URI_CHECKOUT_CART = 'cart/%s/checkout';
 
     /**
      * API versions
@@ -53,6 +64,7 @@ class Client extends BaseClient
         self::URL_DELIVERY_AREAS => true,
         self::URL_FIND_HUB_BY_COORDINATES => true,
         self::URI_GET_HUB_BY_IDENTIFIER => true,
+        self::URI_GET_HUB_BY_SLUG => true,
         self::URI_ADDRESSES => true,
         self::URI_DELETE_ADDRESS => true,
     ];
@@ -72,6 +84,7 @@ class Client extends BaseClient
      */
     private const ALL_URIS_NOT_REQUIRING_AUTHENTICATION = [
         self::URI_GET_HUB_BY_IDENTIFIER => true,
+        self::URI_GET_HUB_BY_SLUG => true,
         self::URL_DELIVERY_AREAS => true,
         self::URL_FIND_HUB_BY_COORDINATES => true,
         self::URL_DETERMINE_DELIVERY_DURATION_TO_COORDINATES => true,
@@ -448,6 +461,202 @@ class Client extends BaseClient
                 self::METHOD_GET,
                 [],
             )
+        );
+    }
+
+    /**
+     * @param string $slug
+     *
+     * @return Hub
+     */
+    public function getHubBySlug(string $slug): Hub
+    {
+        return Hub::createFromApiResponse(
+            $this->sendRequest(
+                self::API_VERSION_1,
+                self::URI_GET_HUB_BY_SLUG,
+                [$slug],
+                [],
+                self::METHOD_GET,
+                [],
+            )
+        );
+    }
+
+    /**
+     * @param Address $shippingAddress
+     * @param string $email
+     *
+     *
+     * @return Cart
+     * @throws Exception
+     */
+    public function createCart(
+        Address $shippingAddress,
+        string $email,
+        Name $name,
+        string $notes = ""
+    ): Cart {
+        $this->assertCoordinateIsWithinDeliveryAreaOfHub($shippingAddress->getCoordinate());
+
+        $response = $this->sendRequest(
+            self::API_VERSION_1,
+            self::URI_CREATE_CART,
+            [],
+            [
+                "delivery_coordinates" => [
+                    "latitude" => $shippingAddress->getCoordinate()->getLatitude(),
+                    "longitude" => $shippingAddress->getCoordinate()->getLongitude(),
+                ],
+                "delivery_eta" => "10",
+                "lines" => [],
+                "notes" => $notes,
+                "email" => $email,
+                "shipping_address" => [
+                    "city" => $shippingAddress->getCity(),
+                    "country" => $shippingAddress->getCountryCode(),
+                    "first_name" => $name->getFirstName(),
+                    "last_name" => $name->getLastName(),
+                    "phone" => "",
+                    "postal_code" => $shippingAddress->getPostCode(),
+                    "street_address_1" => $shippingAddress->getStreetAddress(),
+                ],
+            ],
+            self::METHOD_POST,
+            []
+        );
+
+        if ($response->isError()) {
+            throw new Exception(vsprintf(self::ERROR_FAILED_TO_CREATE_CART, [$response->getMessage()]));
+        } else {
+            return $this->getCartByIdentifier($response->getSingleDataElement()["id"]);
+        }
+    }
+
+    /**
+     * @param string $identifier
+     *
+     * @return Cart
+     */
+    public function getCartByIdentifier(string $identifier): Cart
+    {
+        return Cart::createSingleFromApiResponse(
+            $this->sendRequest(
+                self::API_VERSION_1,
+                self::URI_GET_CART,
+                [$identifier],
+                [],
+                self::METHOD_GET,
+                [],
+            )
+        );
+    }
+
+    /**
+     * @param Cart $cart
+     *
+     * @return Response
+     */
+    public function getPaymentMethods(Cart $cart): Response
+    {
+        return $this->sendRequest(
+            self::API_VERSION_2,
+            self::URI_GET_PAYMENT_METHODS,
+            [$cart->getId()],
+            [],
+            self::METHOD_POST,
+            [],
+        );
+    }
+
+    /**
+     * @param Cart $cart
+     * @param string $code
+     *
+     * @return Response
+     */
+    public function addPromoCode(Cart $cart, string $code): Response
+    {
+        return $this->sendRequest(
+            self::API_VERSION_1,
+            self::URI_ADD_PROMO_CODE,
+            [$cart->getId()],
+            ["voucher_code" => $code],
+            self::METHOD_POST,
+            []
+        );
+    }
+
+    /**
+     * @param Cart $cart
+     * @param int $amount_in_euro_cents
+     *
+     * @return Response
+     */
+    public function addTip(Cart $cart, int $amount_in_euro_cents): Response
+    {
+        return $this->sendRequest(
+            self::API_VERSION_2,
+            self::URI_ADD_TIP,
+            [$cart->getId()],
+            ["rider_tip" => ["centAmount" => $amount_in_euro_cents, "currency" => "EUR"]],
+            self::METHOD_POST,
+            []
+        );
+    }
+
+    /**
+     * @param Cart $cart
+     * @param Product $product
+     * @param int $amount
+     *
+     * @return Cart
+     */
+    public function addProduct(Cart $cart, Product $product, int $amount): Cart
+    {
+        return Cart::createSingleFromApiResponse(
+            $this->sendRequest(
+                self::API_VERSION_1,
+                self::URI_ADD_PRODUCT,
+                [$cart->getId()],
+                ["lines" => [["product_sku" => $product->getSku(), "quantity" => $amount]]],
+                self::METHOD_PUT,
+                [],
+            )
+        );
+    }
+
+    /**
+     * @param Cart $cart
+     * @param string $issuer
+     *
+     * @return Response
+     */
+    public function checkoutWithIdeal(Cart $cart, string $issuer): Response
+    {
+        return $this->sendRequest(
+            self::API_VERSION_1,
+            self::URI_CHECKOUT_CART,
+            [$cart->getId()],
+            [
+                "amount" => $cart->getTotalPrice()->getAmount(),
+                "token" => json_encode(
+                    [
+                        "paymentMethod" => ["type" => "ideal", "issuer" => $issuer],
+                        "storePaymentMethod" => False,
+                        "amount" => [
+                            "currency" => $cart->getTotalPrice()->getCurrency(),
+                            "value" => $cart->getTotalPrice()->getAmountInCents(),
+                        ],
+                        "returnUrl" => vsprintf("https://www.goflink.com/nl-NL/shop/checkout/?cartId=%s", [$cart->getId()]),
+                        "additionalData" => ["allow3DS2" => True],
+                        "channel" => "Web",
+                    ],
+                    JSON_UNESCAPED_UNICODE
+                ),
+            ],
+            self::METHOD_POST,
+            []
         );
     }
 

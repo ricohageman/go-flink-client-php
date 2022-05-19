@@ -4,6 +4,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use GoFlink\Client\Client;
 use GoFlink\Client\Data\Coordinate;
+use GoFlink\Client\Data\Name;
 
 // Coordinate of the new church in Delft, the Netherlands.
 $coordinate = new Coordinate(52.012022198148784, 4.360051148682383);
@@ -18,6 +19,17 @@ echo vsprintf("Randomly selected hub '%s' which is located at (%s, %s)." . PHP_E
         $selected_hub->getSlug(),
         $selected_hub->getCoordinate()->getLatitude(),
         $selected_hub->getCoordinate()->getLongitude(),
+    ],
+);
+
+// Find a specific hub by identifier
+$hub = $client->getHubBySlug("nl_til_noor");
+$client->setHub($hub);
+
+echo vsprintf("Selected the hub '%s' ('%s') by slug." . PHP_EOL,
+    [
+        $hub->getSlug(),
+        $hub->getId(),
     ],
 );
 
@@ -50,10 +62,11 @@ echo vsprintf(
 $products = $client->determineAllProducts();
 echo vsprintf("There are '%s' unique products to buy at the selected hub." . PHP_EOL, [count($products)]);
 
-$product = $products[13003041];
+$banana = $products[13003041];
+$beer = $products[13132240];
 
 // Get the availability of the banana
-$availability = $client->getAvailabilityOfProducts([$product])->getSingleDataElement();
+$availability = $client->getAvailabilityOfProducts([$banana])->getSingleDataElement();
 $availability = $client->getAvailabilityOfProductsBySku(["13003041"])->getSingleDataElement();
 echo vsprintf("There are currently '%s' bananas (%s) in stock at hub '%s'" . PHP_EOL,
     [
@@ -65,5 +78,22 @@ echo vsprintf("There are currently '%s' bananas (%s) in stock at hub '%s'" . PHP
 
 // Authenticate using email and password
 $client->authenticate("example@gmail.com", "password");
-$addresses = $client->createAddress("Markt 80", "2611G", "Delft", "NL", $coordinate, false);
-$addresses = $client->deleteAddress($addresses[0]);
+$addresses = $client->createAddress("Markt 80", "2611G", "Delft", "NL", $coordinate, true);
+
+$selected_address = array_values(array_filter($addresses, function($address) {
+    return $address->getData()["is_default"];
+}))[0];
+
+// Create a cart and add products
+$cart = $client->createCart($selected_address, "example@gmail.com", new Name("John", "Doe"));
+$cart = $client->addProduct($cart, $banana, 2);
+$cart = $client->addProduct($cart, $beer, 1);
+
+$response = $client->addPromoCode($cart, "FIRST");
+
+$payment_methods = $client->getPaymentMethods($cart);
+$response = $client->checkoutWithIdeal($cart, "0802");
+
+// TODO: Handle the payment with adyen/ideal
+
+$addresses = $client->deleteAddress($selected_address);

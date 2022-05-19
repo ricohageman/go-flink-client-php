@@ -17,10 +17,8 @@ class Cart extends Model
     protected Price $totalPrice;
     protected Price $shippingPrice;
     protected Price $discount;
-    protected Address $billingAddress;
-    protected Address $shippingAddress;
-    protected Coordinate $deliveryCoordinate;
-    protected string $email;
+    protected Price $tip;
+    protected Price $recyclingDeposit;
     protected array $lines;
     protected ?string $orderId;
 
@@ -31,12 +29,9 @@ class Cart extends Model
     protected const DATA_KEY_TOTAL_PRICE = "total_price";
     protected const DATA_KEY_SHIPPING_PRICE = "shipping_price";
     protected const DATA_KEY_DISCOUNT = "discount";
+    protected const DATA_KEY_TIP = 'rider_tip';
+    protected const DATA_KEY_RECYCLING_DEPOSIT = 'recycling_deposit';
     protected const DATA_KEY_LINES = "lines";
-    protected const DATA_KEY_BILLING_ADDRESS = "billing_address";
-    protected const DATA_KEY_SHIPPING_ADDRESS = "shipping_address";
-    protected const DATA_KEY_DELIVERY_COORDINATES = "delivery_coordinates";
-    protected const DATA_KEY_EMAIL = "email";
-    protected const DATA_KEY_PAYMENT_GATE_WAY = "payment_gateway";
     protected const DATA_KEY_ORDER = "order";
     protected const DATA_KEY_ORDER_ID = "id";
 
@@ -45,10 +40,7 @@ class Cart extends Model
      * @param Price $totalPrice
      * @param Price $shippingPrice
      * @param Price $discount
-     * @param Address $billingAddress
-     * @param Address $shippingAddress
-     * @param Coordinate $deliveryCoordinate
-     * @param string $email
+     * @param Price $tip
      * @param Line[] $lines
      * @param array $data
      */
@@ -57,10 +49,8 @@ class Cart extends Model
         Price $totalPrice,
         Price $shippingPrice,
         Price $discount,
-        Address $billingAddress,
-        Address $shippingAddress,
-        Coordinate $deliveryCoordinate,
-        string $email,
+        Price $tip,
+        Price $recyclingDeposit,
         array $lines,
         array $data
     ) {
@@ -70,10 +60,8 @@ class Cart extends Model
         $this->totalPrice = $totalPrice;
         $this->shippingPrice = $shippingPrice;
         $this->discount = $discount;
-        $this->billingAddress = $billingAddress;
-        $this->shippingAddress = $shippingAddress;
-        $this->deliveryCoordinate = $deliveryCoordinate;
-        $this->email = $email;
+        $this->tip = $tip;
+        $this->recyclingDeposit = $recyclingDeposit;
         $this->lines = $lines;
 
         $this->addOrderIfPresent($data);
@@ -98,7 +86,7 @@ class Cart extends Model
      *
      * @return Cart
      */
-    public static function createFromApiResponse(Response $response): Cart
+    public static function createSingleFromApiResponse(Response $response): Cart
     {
         self::assertCanCreateFromResponse(
             $response,
@@ -107,12 +95,9 @@ class Cart extends Model
                 self::DATA_KEY_TOTAL_PRICE,
                 self::DATA_KEY_SHIPPING_PRICE,
                 self::DATA_KEY_DISCOUNT,
+                self::DATA_KEY_TIP,
+                self::DATA_KEY_RECYCLING_DEPOSIT,
                 self::DATA_KEY_LINES,
-                self::DATA_KEY_BILLING_ADDRESS,
-                self::DATA_KEY_SHIPPING_ADDRESS,
-                self::DATA_KEY_DELIVERY_COORDINATES,
-                self::DATA_KEY_EMAIL,
-                self::DATA_KEY_PAYMENT_GATE_WAY,
             ]
         );
 
@@ -123,10 +108,8 @@ class Cart extends Model
             Price::createFromData($data[self::DATA_KEY_TOTAL_PRICE]),
             Price::createFromData($data[self::DATA_KEY_SHIPPING_PRICE]),
             Price::createFromData($data[self::DATA_KEY_DISCOUNT]),
-            Address::createFromData($data[self::DATA_KEY_BILLING_ADDRESS]),
-            Address::createFromData($data[self::DATA_KEY_SHIPPING_ADDRESS]),
-            Coordinate::createFromData($data[self::DATA_KEY_DELIVERY_COORDINATES]),
-            $data[self::DATA_KEY_EMAIL],
+            Price::createFromData($data[self::DATA_KEY_TIP]),
+            Price::createFromData($data[self::DATA_KEY_RECYCLING_DEPOSIT]),
             Line::createAllFromData($data[self::DATA_KEY_LINES]),
             $data
         );
