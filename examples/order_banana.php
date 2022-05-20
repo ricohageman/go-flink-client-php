@@ -78,7 +78,7 @@ echo vsprintf("There are currently '%s' bananas (%s) in stock at hub '%s'" . PHP
 
 // Authenticate using email and password
 $client->authenticate("example@gmail.com", "password");
-$addresses = $client->createAddress("Markt 80", "2611G", "Delft", "NL", $coordinate, true);
+$addresses = $client->getAllAddress();
 
 $selected_address = array_values(array_filter($addresses, function($address) {
     return $address->getData()["is_default"];
@@ -95,5 +95,3 @@ $payment_methods = $client->getPaymentMethods($cart);
 $response = $client->checkoutWithIdeal($cart, "0802");
 
 // TODO: Handle the payment with adyen/ideal
-
-$addresses = $client->deleteAddress($selected_address);

@@ -43,6 +43,7 @@ class Client extends BaseClient
     protected const URI_GET_PRODUCT_PRICE = 'products/prices';
     protected const URI_ADDRESSES = 'address';
     protected const URI_DELETE_ADDRESS = 'address/%s';
+    protected const URI_GET_ADDRESSES = 'address/list';
     protected const URI_CREATE_CART = 'cart';
     protected const URI_GET_CART = 'cart/%s';
     protected const URI_GET_PAYMENT_METHODS = 'cart/%s/payment-methods';
@@ -67,6 +68,7 @@ class Client extends BaseClient
         self::URI_GET_HUB_BY_SLUG => true,
         self::URI_ADDRESSES => true,
         self::URI_DELETE_ADDRESS => true,
+        self::URI_GET_ADDRESSES => true,
     ];
 
     /**
@@ -294,6 +296,22 @@ class Client extends BaseClient
             $allProductSku,
             self::METHOD_POST,
             []
+        );
+    }
+
+    /**
+     * @return Address[]
+     */
+    public function getAllAddress(): array {
+        return Address::createAllFromApiResponse(
+            $this->sendRequest(
+                self::API_VERSION_1,
+                self::URI_GET_ADDRESSES,
+                [],
+                [],
+                self::METHOD_GET,
+                [],
+            )
         );
     }
 
